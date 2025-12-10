@@ -7,6 +7,9 @@ import base64
 app = Flask(__name__)
 sock = Sock(app)
 
+connections = {}
+doors = {}
+
 @sock.route('/connect')
 def echo(ws):
     while True:
@@ -14,12 +17,30 @@ def echo(ws):
         try: 
             obj = json.loads(data)
 
-            if(obj["type"] == "listen_to_room"):
-                pass # todo
+            if(obj["type"] == "listen_to_door"):
+                connections[ws] = obj["door"]
+                if(obj["door"] not in doors):
+                    doors[obj["door"]] = {"rings": 0, "messages": []};
+                ws.send(json.dumps({"type": "door_info", "door": obj["door"], "times_rang": doors[obj["door"]]["rings"], "messages": doors[obj["door"]]["messages"]}))
             elif(obj["type"] == "ring"):
-                pass # todo
+                doors[obj["door"]]["rings"] += 1
+                connections_clone = connections.copy()
+                if("message" in obj):
+                    doors[obj["door"]]["messages"].append(obj["message"])
+                    if(len(doors[obj["door"]]["messages"]) > 10):
+                        doors[obj["door"]]["messages"].pop(0)
+                for other_ws in connections_clone:
+                    if(connections_clone[other_ws] == obj["door"] and other_ws != ws):
+                        try: 
+                            if "message" in obj:
+                                other_ws.send(json.dumps({"type": "ring", "door": obj["door"], "message": obj["message"]}))
+                            else:
+                                other_ws.send(json.dumps({"type": "ring", "door": obj["door"]}))
+                        except:
+                            connections.pop(other_ws)
         except:
             # json parse failed
+            connections.pop(ws)
             ws.close()
             break;
 
