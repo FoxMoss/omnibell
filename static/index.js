@@ -14,7 +14,9 @@ document.addEventListener("DOMContentLoaded", () => {
       let div = document.createElement("div");
       div.innerText = message;
       document.getElementById("logs").appendChild(div);
-      document.getElementById("logs").scrollTo(document.getElementById("logs").scrollHeight, 0);
+      document
+        .getElementById("logs")
+        .scrollTo(0, document.getElementById("logs").scrollHeight);
     }
   };
 
@@ -24,7 +26,7 @@ document.addEventListener("DOMContentLoaded", () => {
     connection.send(
       JSON.stringify({
         type: "listen_to_door",
-        door: document.getElementById("room-name").value,
+        door: document.getElementById("door-name").value,
       }),
     );
   };
@@ -39,9 +41,11 @@ document.addEventListener("DOMContentLoaded", () => {
       updateRings();
       for (let message in eventData["messages"]) {
         let div = document.createElement("div");
-        div.innerText = message;
+        div.innerText = eventData["messages"][message];
         document.getElementById("logs").appendChild(div);
-      document.getElementById("logs").scrollTo(document.getElementById("logs").scrollHeight, 0);
+        document
+          .getElementById("logs")
+          .scrollTo(0, document.getElementById("logs").scrollHeight);
       }
     }
   };
@@ -60,11 +64,11 @@ document.addEventListener("DOMContentLoaded", () => {
   connection.addEventListener("message", messageCallback);
   connection.addEventListener("close", closeCallback);
 
-  document.getElementById("room-name").addEventListener("input", (e) => {
+  document.getElementById("door-name").addEventListener("input", (e) => {
     connection.send(
       JSON.stringify({
         type: "listen_to_door",
-        door: document.getElementById("room-name").value,
+        door: document.getElementById("door-name").value,
       }),
     );
     window.history.replaceState({}, "", `/${btoa(e.target.value)}`);
@@ -86,11 +90,11 @@ document.addEventListener("DOMContentLoaded", () => {
     connection.send(
       JSON.stringify({
         type: "ring",
-        door: document.getElementById("room-name").value,
+        door: document.getElementById("door-name").value,
         message: ringVal,
       }),
     );
-    ring(ringVal);
+    ring(ringVal ? ringVal + " from you!" : "Ring from you!");
     document.getElementById("message").value = "";
   });
 });
