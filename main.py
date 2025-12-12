@@ -27,8 +27,6 @@ def stats():
     return server_stats
 
 
-DOOR_TEMPLATE = {"rings": 0, "messages": [], "notification_listeners": []}
-
 # implements the ntfy protocol
 # https://docs.ntfy.sh/subscribe/api/
 @sock.route('/ntfy/<string:door>/ws')
@@ -38,7 +36,7 @@ def ntfy(ws, door):
     print(f"ntfy connected to {door}")
     ws.send(json.dumps({"id": str(uuid4()), "time": round(time.time()), "event": "open", "topic": door_name }))
     if(door not in doors):
-        doors[door_name ] = DOOR_TEMPLATE
+        doors[door_name ] = DOOR_TEMPLATE.copy()
     try:
         doors[door_name ]["notification_listeners"].append(ws)
         while True:
@@ -61,7 +59,7 @@ def echo(ws):
 
                 # make sure door is initalized
                 if(obj["door"] not in doors):
-                    doors[obj["door"]] = DOOR_TEMPLATE
+                    doors[obj["door"]] = {"rings": 0, "messages": [], "notification_listeners": []}
 
                 # send client info that has already happened
                 ws.send(json.dumps({"type": "door_info", "door": obj["door"], "times_rang": doors[obj["door"]]["rings"], "messages": doors[obj["door"]]["messages"]}))
@@ -79,12 +77,12 @@ def echo(ws):
                 doors[obj["door"]]["rings"] += 1
 
                 # cloned so we can edit the base array
-                connections_clone = connections.copy()
+                connections_clone = {"rings": 0, "messages": [], "notification_listeners": []}
 
                 # make the ring message a little more verbose
                 processed_message = f"Ring at {datetime.datetime.now()}"
                 if("message" in obj):
-                    processed_message = f"{obj["message"]} at {datetime.datetime.now()}"
+                    processed_message = f"{obj['message']} at {datetime.datetime.now()}"
 
                 # update history we store 10 messages
                 doors[obj["door"]]["messages"].append(processed_message)

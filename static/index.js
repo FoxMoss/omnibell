@@ -1,5 +1,5 @@
 document.addEventListener("DOMContentLoaded", () => {
-  var sound = new Howl({ src: ["/static/ring.mp3"] });
+  var sound = null;
 
   let ring_counter = 0;
   const updateRings = () => {
@@ -7,6 +7,9 @@ document.addEventListener("DOMContentLoaded", () => {
       `Doorbell has been rung ${ring_counter} times.`;
   };
   const ring = (message) => {
+    if (sound == null){
+      sound = new Howl({ src: ["/static/ring.mp3"] });
+    }
     sound.play();
     ring_counter++;
     updateRings();
@@ -37,6 +40,8 @@ document.addEventListener("DOMContentLoaded", () => {
       ring(eventData["message"]);
     }
     if (eventData["type"] == "door_info") {
+      document.getElementById("logs").innerHTML = "";
+
       ring_counter = eventData["times_rang"];
       updateRings();
       for (let message in eventData["messages"]) {
