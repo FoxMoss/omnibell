@@ -50,61 +50,65 @@ def ntfy(ws, door):
 def echo(ws):
     while True:
         data = ws.receive()
-        try: 
-            obj = json.loads(data)
-            if(obj["type"] == "listen_to_door"):
+        # try: 
+        obj = json.loads(data)
+        if(obj["type"] == "listen_to_door"):
 
-                # map all door conenctions
-                connections[ws] = obj["door"]
+            # map all door conenctions
+            connections[ws] = obj["door"]
 
-                # make sure door is initalized
-                if(obj["door"] not in doors):
-                    doors[obj["door"]] = {"rings": 0, "messages": [], "notification_listeners": []}
+            # make sure door is initalized
+            if(obj["door"] not in doors):
+                doors[obj["door"]] = {"rings": 0, "messages": [], "notification_listeners": []}
 
-                # send client info that has already happened
-                ws.send(json.dumps({"type": "door_info", "door": obj["door"], "times_rang": doors[obj["door"]]["rings"], "messages": doors[obj["door"]]["messages"]}))
-            elif(obj["type"] == "ring"):
-                # update stats info
-                server_stats["total_sent"] += 1
-                if("message" in obj):
-                    server_stats["total_messages"] += 1
-                else:
-                    server_stats["total_rings"] += 1
-                if(server_stats["total_messages"] != 0):
-                    server_stats["ring_to_message_ratio"] = server_stats["total_rings"] / server_stats["total_messages"]
+            # send client info that has already happened
+            ws.send(json.dumps({"type": "door_info", "door": obj["door"], "times_rang": doors[obj["door"]]["rings"], "messages": doors[obj["door"]]["messages"]}))
+        elif(obj["type"] == "ring"):
 
-                # update door info
-                doors[obj["door"]]["rings"] += 1
+            if(obj["door"] not in doors):
+                doors[obj["door"]] = {"rings": 0, "messages": [], "notification_listeners": []}
 
-                # cloned so we can edit the base array
-                connections_clone = {"rings": 0, "messages": [], "notification_listeners": []}
+            # update stats info
+            server_stats["total_sent"] += 1
+            if("message" in obj):
+                server_stats["total_messages"] += 1
+            else:
+                server_stats["total_rings"] += 1
+            if(server_stats["total_messages"] != 0):
+                server_stats["ring_to_message_ratio"] = server_stats["total_rings"] / server_stats["total_messages"]
 
-                # make the ring message a little more verbose
-                processed_message = f"Ring at {datetime.datetime.now()}"
-                if("message" in obj):
-                    processed_message = f"{obj['message']} at {datetime.datetime.now()}"
+            # update door info
+            doors[obj["door"]]["rings"] += 1
 
-                # update history we store 10 messages
-                doors[obj["door"]]["messages"].append(processed_message)
-                if(len(doors[obj["door"]]["messages"]) > 10):
-                    doors[obj["door"]]["messages"].pop(0)
+            # make the ring message a little more verbose
+            processed_message = f"Ring at {datetime.datetime.now()}"
+            if("message" in obj):
+                processed_message = f"{obj['message']} at {datetime.datetime.now()}"
 
-                # send notifications
-                for notify_ws in doors[obj["door"]]["notification_listeners"]:
-                    notify_ws.send(json.dumps({"id": str(uuid4()), "time": round(time.time()), "event": "message", "topic": obj["door"], "message":processed_message}))
+            # update history we store 10 messages
+            doors[obj["door"]]["messages"].append(processed_message)
+            if(len(doors[obj["door"]]["messages"]) > 10):
+                doors[obj["door"]]["messages"].pop(0)
 
-                # relay to normal clients
-                for other_ws in connections_clone:
-                    if(connections_clone[other_ws] == obj["door"] and other_ws != ws):
-                        try: 
-                            other_ws.send(json.dumps({"type": "ring", "door": obj["door"], "message": processed_message}))
-                        except:
-                            connections.pop(other_ws)
-        except:
-            # json parse failed
-            connections.pop(ws)
-            ws.close()
-            break;
+            # send notifications
+            for notify_ws in doors[obj["door"]]["notification_listeners"]:
+                notify_ws.send(json.dumps({"id": str(uuid4()), "time": round(time.time()), "event": "message", "topic": obj["door"], "message":processed_message}))
+
+            # cloned so we can edit the base array
+            connections_clone = connections.copy()
+
+            # relay to normal clients
+            for other_ws in connections_clone:
+                if(connections_clone[other_ws] == obj["door"] and other_ws != ws):
+                    try: 
+                        other_ws.send(json.dumps({"type": "ring", "door": obj["door"], "message": processed_message}))
+                    except:
+                        connections.pop(other_ws)
+        # except:
+        #     # json parse failed
+        #     connections.pop(ws)
+        #     ws.close()
+        #     break;
 
 @app.route('/<string:door>')
 @app.route('/')
