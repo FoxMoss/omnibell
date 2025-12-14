@@ -1,5 +1,5 @@
 from uuid import uuid4
-from flask import Flask, session, render_template, request
+from flask import Flask, session, render_template, request, stream_with_context
 from flask_sock import Sock
 import json
 import base64
@@ -27,7 +27,7 @@ def stats():
     return server_stats
 
 
-# implements the ntfy protocol
+# implements the websocket ntfy protocol
 # https://docs.ntfy.sh/subscribe/api/
 @sock.route('/ntfy/<string:door>/ws')
 def ntfy(ws, door):
@@ -36,15 +36,37 @@ def ntfy(ws, door):
     print(f"ntfy connected to {door}")
     ws.send(json.dumps({"id": str(uuid4()), "time": round(time.time()), "event": "open", "topic": door_name }))
     if(door not in doors):
-        doors[door_name ] = DOOR_TEMPLATE.copy()
+        doors[door_name] = {"rings": 0, "messages": [], "notification_listeners": []}
+
     try:
-        doors[door_name ]["notification_listeners"].append(ws)
+        doors[door_name]["notification_listeners"].append(ws)
         while True:
             data = ws.receive()
     finally: 
         ws.close()
         doors[obj["door"]]["notification_listeners"].pop(doors[obj["door"]]["notification_listeners"].index(ws))
 
+# WIP: http stream support
+@app.route('/ntfy/<string:door>/json')
+def ntfy_stream(door):
+    door_name = base64.b64decode(door).decode("utf-8")
+
+    def stream():
+        print(f"ntfy connected to {door}")
+        yield json.dumps({"id": str(uuid4()), "time": round(time.time()), "event": "open", "topic": door_name }) + "\n"
+        if(door not in doors):
+            doors[door_name] = {"rings": 0, "messages": [], "notification_listeners": []}
+
+        while True:
+            yield json.dumps({"id": str(uuid4()), "time": round(time.time()), "event": "message", "topic": door_name, "message":"yo!"}) + "\n"
+            time.sleep(1)
+    return stream_with_context(stream())
+
+@app.route('/ntfy/<string:door>/auth')
+def ntfy_stream(door):
+    door_name = base64.b64decode(door).decode("utf-8")
+
+    return {"success": True}
 
 @sock.route('/connect')
 def echo(ws):
