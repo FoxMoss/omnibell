@@ -34,7 +34,7 @@ def ntfy(ws, door):
     door_name = base64.b64decode(door).decode("utf-8")
 
     print(f"ntfy connected to {door}")
-    ws.send(json.dumps({"id": str(uuid4()), "time": round(time.time()), "event": "open", "topic": door_name }))
+    ws.send(json.dumps({"id": door, "time": round(time.time()), "event": "open", "topic": door_name }))
     if(door not in doors):
         doors[door_name] = {"rings": 0, "messages": [], "notification_listeners": []}
 
@@ -46,10 +46,36 @@ def ntfy(ws, door):
         ws.close()
         doors[obj["door"]]["notification_listeners"].pop(doors[obj["door"]]["notification_listeners"].index(ws))
 
+new_packets = []
+
 # WIP: http stream support
 @app.route('/ntfy/<string:door>/json')
 def ntfy_stream(door):
     door_name = base64.b64decode(door).decode("utf-8")
+
+    if(request.args.get('poll')):
+        can_read = True
+        since = ""
+        if(request.args.get('since') and request.args.get('since') != door):
+            can_read = False
+            since = request.args.get('since')
+
+        ret = json.dumps({"id": door, "time": round(time.time()), "event": "open", "topic": door_name }) + "\n"
+        for packets in new_packets:
+            if(packets["id"] == since):
+                can_read = True
+                continue
+
+            if(packets["topic"] != door_name):
+                continue
+
+            if(not can_read):
+                continue
+
+            ret += json.dumps(packets) + "\n"
+        return ret
+
+    read_packets_id = []
 
     def stream():
         print(f"ntfy connected to {door}")
@@ -58,12 +84,19 @@ def ntfy_stream(door):
             doors[door_name] = {"rings": 0, "messages": [], "notification_listeners": []}
 
         while True:
-            yield json.dumps({"id": str(uuid4()), "time": round(time.time()), "event": "message", "topic": door_name, "message":"yo!"}) + "\n"
+            for packet in new_packets:
+                if(new_packets["id"] in read_packets_id):
+                    continue
+                if(new_packets["topic"] != door_name):
+                    continue
+                yield json.dumps(packet) + "\n"
+                read_packets_id.append(new_packets["id"])
+
             time.sleep(1)
     return stream_with_context(stream())
 
 @app.route('/ntfy/<string:door>/auth')
-def ntfy_stream(door):
+def ntfy_auth(door):
     door_name = base64.b64decode(door).decode("utf-8")
 
     return {"success": True}
@@ -112,12 +145,19 @@ def echo(ws):
             if(len(doors[obj["door"]]["messages"]) > 10):
                 doors[obj["door"]]["messages"].pop(0)
 
+            notify_packet = {"id": str(uuid4()), "time": round(time.time()), "event": "message", "topic": obj["door"], "message":processed_message}
+
             # send notifications
             for notify_ws in doors[obj["door"]]["notification_listeners"]:
-                notify_ws.send(json.dumps({"id": str(uuid4()), "time": round(time.time()), "event": "message", "topic": obj["door"], "message":processed_message}))
+                notify_ws.send(json.dumps(notify_packet))
+
+            new_packets.append(notify_packet)
+
 
             # cloned so we can edit the base array
             connections_clone = connections.copy()
+
+            
 
             # relay to normal clients
             for other_ws in connections_clone:
