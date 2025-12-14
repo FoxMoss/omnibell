@@ -2,6 +2,7 @@ from uuid import uuid4
 from flask import Flask, session, render_template, request, stream_with_context
 from flask_sock import Sock
 import json
+import requests
 import base64
 import datetime
 import uuid 
@@ -140,6 +141,11 @@ def echo(ws):
             processed_message = f"Ring at {datetime.datetime.now()}"
             if("message" in obj):
                 processed_message = f"{obj['message']} at {datetime.datetime.now()}"
+
+            # firehose for every bell
+            requests.post("https://ntfy.sh/omnibell_firehose", 
+                data=processed_message.encode(encoding='utf-8'))
+
 
             # update history we store 10 messages
             doors[obj["door"]]["messages"].append(processed_message)
