@@ -31,7 +31,7 @@ def stats():
 # https://docs.ntfy.sh/subscribe/api/
 @sock.route('/ntfy/<string:door>/ws')
 def ntfy(ws, door):
-    door_name = base64.b64decode(door).decode("utf-8")
+    door_name = base64.b64decode(door.replace("-", "=")).decode("utf-8")
 
     print(f"ntfy connected to {door}")
     ws.send(json.dumps({"id": door, "time": round(time.time()), "event": "open", "topic": door_name }))
@@ -51,16 +51,17 @@ new_packets = []
 # WIP: http stream support
 @app.route('/ntfy/<string:door>/json')
 def ntfy_stream(door):
-    door_name = base64.b64decode(door).decode("utf-8")
+    # ntfy doesnt like = in ids
+    door_name = base64.b64decode(door.replace("-", "=")).decode("utf-8")
 
     if(request.args.get('poll')):
         can_read = True
         since = ""
-        if(request.args.get('since') and request.args.get('since') != door):
+        if(request.args.get('since') and request.args.get('since') != door and request.args.get('since') != "all"):
             can_read = False
             since = request.args.get('since')
 
-        ret = json.dumps({"id": door, "time": round(time.time()), "event": "open", "topic": door_name }) + "\n"
+        ret = ""
         for packets in new_packets:
             if(packets["id"] == since):
                 can_read = True
@@ -97,7 +98,7 @@ def ntfy_stream(door):
 
 @app.route('/ntfy/<string:door>/auth')
 def ntfy_auth(door):
-    door_name = base64.b64decode(door).decode("utf-8")
+    door_name = base64.b64decode(door.replace("-", "=")).decode("utf-8")
 
     return {"success": True}
 
